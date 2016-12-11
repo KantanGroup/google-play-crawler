@@ -3,12 +3,12 @@ package com.akdeniz.googleplaycrawler;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import com.akdeniz.googleplaycrawler.misc.UserAgent;
 import org.apache.http.HttpHost;
 import org.apache.http.client.HttpClient;
 import org.apache.http.conn.params.ConnRoutePNames;
@@ -40,16 +40,27 @@ public class TestGooglePlayCrawler {
 	@BeforeClass
 	public static void setup() throws Exception {
 
-		Properties properties = new Properties();
-		properties.load(new FileInputStream("./src/test/resources/login.conf"));
+		String configFile = "./src/test/resources/login.conf";
 
-		String email = properties.getProperty("email");
-		String password = properties.getProperty("password");
+		Properties configProperties = new Properties();
+		configProperties.load(new FileInputStream(configFile));
 
-		String host = properties.getProperty("host");
-		String port = properties.getProperty("port");
+		String email = configProperties.getProperty("email");
+		String password = configProperties.getProperty("password");
+		String androidId = configProperties.getProperty("androidid");
+		String host = configProperties.getProperty("host");
+		String port = configProperties.getProperty("port");
 
-		service = new GooglePlayAPI(email, password);
+		String versionName = configProperties.getProperty("versionName");
+		String versionCode = configProperties.getProperty("versionCode");
+		String sdk = configProperties.getProperty("sdk");
+		String device = configProperties.getProperty("device");
+		String hardware = configProperties.getProperty("hardware");
+		String product = configProperties.getProperty("product");
+		String build = configProperties.getProperty("build");
+		UserAgent userAgent = new UserAgent(versionName, versionCode, sdk, device, hardware, product, build);
+
+		service = new GooglePlayAPI(email, password, androidId, userAgent);
 
 		if (host != null && port != null) {
 			service.setClient(getProxiedHttpClient(host, Integer.valueOf(port)));

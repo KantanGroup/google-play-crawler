@@ -1,7 +1,7 @@
 Google Play Crawler JAVA API
-===================
+============================
 
-google-play-crawler is simply for searching android applications on GooglePlay, and also downloading them.
+google-play-crawler is a tool to download APKs from the Google Play Store to your desktop computer.
 
 Now you can dowload applications with single click from web to your desktop. 
 
@@ -13,13 +13,9 @@ If you try to download incompatible application for Galaxy S3, you will get an e
 "The item you were attempting to purchase could not be found."
 ```
 
-Motivated users can add other device properties from here : http://www.glbenchmark.com/phonedetails.jsp?benchmark=glpro25&D=Samsung+GT-I9300+Galaxy+S+III&testgroup=system
-
 
 This project is available thanks to this project : https://github.com/egirault/googleplay-api. 
 
-
-Take a look at code, it is not that sophisticated..
 
 ## Building and running
 
@@ -51,12 +47,20 @@ Install Maven 3 & protobuf compiler (version 2.5!)
 ```
 sudo apt-get install maven protobuf-compiler libprotobuf-java
 ```
-And build:
+There are two ways to build the target executable:
 ```
+# To build without testing, run:
 mvn package -Dmaven.test.skip=true
+
+OR
+
+# To build with testing, fill out email, password, and androidid in "src/test/resources/login.conf" and run:
+mvn package
+
 ```
 
 This will ignore the tests and pack for you. If you want to run tests, you need to edit login.conf with your google account credentials.
+Please note that the "androidid" is really the Google Service Framework (GSF) ID has replaced the Android ID which is now deprecated.
 
 
 ## Usage
@@ -78,9 +82,7 @@ This will ignore the tests and pack for you. If you want to run tests, you need 
 ### General
 
     java -jar googleplay.jar --help
-    usage: googleplay [-h] [-f [CONF]] [-i [ANDROIDID]] [-e [EMAIL]]
-                      [-p [PASSWORD]] [-t [SECURITYTOKEN]] [-a [HOST]] 
-                      [-l [PORT]]
+    usage: googleplay [-h] [-f [CONF]]
                       {download,checkin,list,categories,search,permissions,reviews,register,usegcm}
                       ...
 
@@ -89,23 +91,9 @@ This will ignore the tests and pack for you. If you want to run tests, you need 
     optional arguments:
       -h, --help             show this help message and exit
       -f [CONF], --conf [CONF]
-                             Configuration file to used for login! If any of
-                             androidid, email and password is supplied, it
-                             will be ignored!
-      -i [ANDROIDID], --androidid [ANDROIDID]
-                             ANDROID-ID to be used! You can use "Checkin"
-                             mechanism, if you don't have one!
-      -e [EMAIL], --email [EMAIL]
-                             Email address to be used for login.
-      -p [PASSWORD], --password [PASSWORD]
-                             Password to be used for login.
-      -t [SECURITYTOKEN], --securitytoken [SECURITYTOKEN]
-                            Security token that was generated at checkin. It
-                            is only required for "usegcm" option
-      -a [HOST], --host [HOST]
-                             Proxy host
-      -l [PORT], --port [PORT]
-                             Proxy port
+                             Configuration file contains the login information, such as
+                             the androidid (Google Service Framework ID), email, password,
+                             and user agent. The user agent provided works with any androidid.
     
     subcommands:
       Command to be executed.
@@ -136,8 +124,9 @@ You can get usage of sub-commands like this :
 
 ### About Login & Proxy Arguments
 
-Login & Proxy arguments (androidid, email, password, host, port) can be defined in a configuration file not to pass them every time in command line. 
-If you don't want to use proxy, just comment proxy host and port!
+Login, proxy, and user agent arguments must be defined in a configuration file, as shown below.
+If you want to use the proxy feature, just uncomment and enter a proxy host and port!
+The user agent determines if an app is compatible with an Android device. The user agent provided can be used with any combination of email and androidid.
 
     # Login Information
     email = xxxxxxxxx@gmail.com
@@ -147,22 +136,32 @@ If you don't want to use proxy, just comment proxy host and port!
     securitytoken = xxxxxxxx
     
     # Proxy Information
-    host=localhost
-    port=8888
+    #host=localhost
+    #port=8888
+
+    # User Agent
+    #   See "get_user_agent_details.sh" for more information
+    versionName=5.5.12
+    versionCode=80351200
+    sdk=22
+    device=zeroflteatt
+    hardware=samsungexynos7420
+    product=zeroflteatt
+    build=LMY47X:user
     
 You can use this file like this:
 
-    java -jar googleplay.jar --conf crawler.conf ...
+    java -jar googleplay.jar --conf login.conf ...
 
 Note that "usegcm" option does not operate on HTTP, so it won't be proxified by this configuration.  
     
 ### About Account Page Registration
 
-To see your chekined device at your account page(https://play.google.com/store/account), you should register it like this:
+To see your checked-in device at your account page (https://play.google.com/store/account), you can register it as follows:
 
     java -jar googleplay.jar -f crawler.conf register
 
-and **download a few application after registration!**(same behaviour of android market application!)
+and **download a few application after registration!** (same behaviour of android market application!)
 
 ~~Of course this does not allow you to click and download from web page! It is just for information right now!~~
 
@@ -178,12 +177,6 @@ All you have to do register your checkined device as described above and execute
 
 Now you can login to your account from web browser and try to install any application.
 
-
-TODO
-----
-Add other device properties to use with checkin.. (Tablet,.. etc.)
-
-~~Simulate Android GCM Push-in mechanism to allow download from web!~~
 
 License
 ----
