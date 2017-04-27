@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 
+import com.akdeniz.googleplaycrawler.misc.UserAgent;
 import org.apache.http.HttpHost;
 import org.apache.http.client.HttpClient;
 import org.apache.http.conn.params.ConnRoutePNames;
@@ -81,26 +82,14 @@ public class googleplay {
     private static final int TIMEOUT = 10000;
 
     public googleplay() {
+
 	parser = ArgumentParsers.newArgumentParser("googleplay").description("Play with Google Play API :)");
 
 	/* =================Common Arguments============== */
 	parser.addArgument("-f", "--conf")
 		.nargs("?")
-		.help("Configuration file to used for login! If any of androidid, email and password is supplied, it will be ignored!")
-		.setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-i", "--androidid").nargs("?")
-		.help("ANDROID-ID to be used! You can use \"Checkin\" mechanism, if you don't have one!")
-		.setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-e", "--email").nargs("?").help("Email address to be used for login.")
-		.setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-p", "--password").nargs("?").help("Password to be used for login.")
-		.setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-t", "--securitytoken").nargs("?").help("Security token that was generated at checkin. It is only required for \"usegcm\" option")
-	.setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-z", "--localization").nargs("?").help("Localization string that will customise fetched informations such as reviews, " +
-			"descriptions,... Can be : en-EN, en-US, tr-TR, fr-FR ... (default : en-EN)").setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-a", "--host").nargs("?").help("Proxy host").setDefault(FeatureControl.SUPPRESS);
-	parser.addArgument("-l", "--port").type(Integer.class).nargs("?").help("Proxy port")
+		.help("Configuration file containing login information (email, password, android ID) and user agent details for " +
+				"compatibility checks.")
 		.setDefault(FeatureControl.SUPPRESS);
 
 	Subparsers subparsers = parser.addSubparsers().description("Command to be executed.");
@@ -151,7 +140,7 @@ public class googleplay {
 		.help("offset to define where list begins");
 	reviewsParser.addArgument("-n", "--number").type(Integer.class).required(false)
 		.help("how many reviews will be listed");
-	
+
 	/* =================Recommendation Arguments============== */
 	Subparser recommendationParser = subparsers.addParser("recommendations", true)
 		.description("lists recommended apps of given application").setDefault("command", COMMAND.RECOMMENDATIONS);
@@ -162,19 +151,20 @@ public class googleplay {
 		.help("offset to define where list begins");
 	recommendationParser.addArgument("-n", "--number").type(Integer.class).required(false)
 		.help("how many recommendations will be listed");
-	
+
 	/* =================Register Arguments============== */
 	subparsers.addParser("register", true).description("registers device so that can be seen from web!")
 		.setDefault("command", COMMAND.REGISTER);
-	
+
 	/* =================UseGCM Arguments============== */
 	subparsers.addParser("usegcm", true).description("listens GCM(GoogleCloudMessaging) for download notification and downloads them!")
 		.setDefault("command", COMMAND.USEGCM);
     }
 
     public static void main(String[] args) throws Exception {
-
-	new googleplay().operate(args);
+		//String configFile = "login.conf";
+		//args = new String[]{"--conf", configFile, "download", "com.nianticlabs.pokemongo"};
+		new googleplay().operate(args);
     }
 
     public void operate(String[] argv) {
@@ -241,10 +231,10 @@ public class googleplay {
 	send(session, IoBuffer.wrap(new byte[] { 0x07 })); // connection sanity check
 	System.out.println("Connected to server.");
 
-	String deviceIDStr = String.valueOf(new BigInteger(service.getAndroidID(), 16).longValue());
+	String deviceIDStr = String.valueOf(new BigInteger(service.getAndroidId(), 16).longValue());
 	String securityTokenStr = String.valueOf(new BigInteger(service.getSecurityToken(), 16).longValue());
 	
-	LoginRequestPacket loginRequestPacket = new LoginRequestPacket(deviceIDStr, securityTokenStr, service.getAndroidID());
+	LoginRequestPacket loginRequestPacket = new LoginRequestPacket(deviceIDStr, securityTokenStr, service.getAndroidId());
 	
 	LoginResponseFilter loginResponseFilter = new LoginResponseFilter(loginRequestPacket.getPacketID());
 	connector.addFilter(loginResponseFilter);
@@ -256,7 +246,7 @@ public class googleplay {
 	} else if(loginResponse.hasError()){
 	    throw new IllegalStateException(loginResponse.getError().getExtension(0).getMessage());
 	}
-	System.out.println("Autheticated.");
+	System.out.println("Authenticated.");
 
 	BindAccountRequestPacket bindAccountRequestPacket = new BindAccountRequestPacket(service.getEmail(), ac2dmAuth);
 	
@@ -348,7 +338,6 @@ public class googleplay {
 		System.out.println("\t" + permission);
 	    }
 	}
-
     }
 
     private void searchCommand() throws Exception {
@@ -382,81 +371,81 @@ public class googleplay {
     }
 
     private void checkinCommand() throws Exception {
-	checkin();
+		checkin();
 
-	System.out.println("Your account succesfully checkined!");
-	System.out.println("AndroidID : " + service.getAndroidID());
-	System.out.println("SecurityToken : " + service.getSecurityToken());
+		System.out.println("Your account succesfully checkined!");
+		System.out.println("AndroidID : " + service.getAndroidId());
+		System.out.println("SecurityToken : " + service.getSecurityToken());
     }
 
     private void login() throws Exception {
-	String androidid = namespace.getString("androidid");
-	String email = namespace.getString("email");
-	String password = namespace.getString("password");
-	String localization = namespace.getString("localization");
 
-	if (androidid != null && email != null && password != null) {
-	    createLoginableService(androidid, email, password, localization);
-	    service.login();
-	    return;
-	}
+		String androidid, email, password, localization;
+		UserAgent userAgent;
+		if (namespace.getAttrs().containsKey("conf")) {
+			Properties properties = new Properties();
+			properties.load(new FileInputStream(namespace.getString("conf")));
 
-	if (namespace.getAttrs().containsKey("conf")) {
-	    Properties properties = new Properties();
-	    properties.load(new FileInputStream(namespace.getString("conf")));
+			androidid = properties.getProperty("androidid");
+			email = properties.getProperty("email");
+			password = properties.getProperty("password");
+			localization = properties.getProperty("localization");
 
-	    androidid = properties.getProperty("androidid");
-	    email = properties.getProperty("email");
-	    password = properties.getProperty("password");
-	    localization = properties.getProperty("localization");
+			String versionName = properties.getProperty("versionName");
+			String versionCode = properties.getProperty("versionCode");
+			String sdk = properties.getProperty("sdk");
+			String device = properties.getProperty("device");
+			String hardware = properties.getProperty("hardware");
+			String product = properties.getProperty("product");
+			String build = properties.getProperty("build");
+			userAgent = new UserAgent(versionName, versionCode, sdk, device, hardware, product, build);
 
-	    if (androidid != null && email != null && password != null) {
-		createLoginableService(androidid, email, password, localization);
-		service.login();
-		return;
-	    }
-	}
+			if (androidid != null && email != null && password != null) {
+				createLoginableService(androidid, email, password, userAgent, localization);
+				service.login();
+				return;
+			}
+		}
 
-	throw new GooglePlayException("Lack of information for login!");
+		throw new GooglePlayException("Lack of information for login!");
     }
     
     private String loginAC2DM() throws Exception {
-	String androidid = namespace.getString("androidid");
-	String email = namespace.getString("email");
-	String password = namespace.getString("password");
-	String securityToken = namespace.getString("securitytoken");
-	String localization = namespace.getString("localization");
 
-	if (androidid != null && email != null && password != null && securityToken!=null) {
-	    createLoginableService(androidid, email, password, localization);
-	    service.login();
-	    service.setSecurityToken(securityToken);
-	    return service.loginAC2DM();
-	}
+		String androidid, email, password, securityToken, localization;
+		UserAgent userAgent;
+		if (namespace.getAttrs().containsKey("conf")) {
+			Properties properties = new Properties();
+			properties.load(new FileInputStream(namespace.getString("conf")));
 
-	if (namespace.getAttrs().containsKey("conf")) {
-	    Properties properties = new Properties();
-	    properties.load(new FileInputStream(namespace.getString("conf")));
+			androidid = properties.getProperty("androidid");
+			email = properties.getProperty("email");
+			password = properties.getProperty("password");
+			securityToken = properties.getProperty("securitytoken");
+			localization = properties.getProperty("localization");
 
-	    androidid = properties.getProperty("androidid");
-	    email = properties.getProperty("email");
-	    password = properties.getProperty("password");
-	    securityToken = properties.getProperty("securitytoken");
-	    localization = properties.getProperty("localization");
+			String versionName = properties.getProperty("versionName");
+			String versionCode = properties.getProperty("versionCode");
+			String sdk = properties.getProperty("sdk");
+			String device = properties.getProperty("device");
+			String hardware = properties.getProperty("hardware");
+			String product = properties.getProperty("product");
+			String build = properties.getProperty("build");
+			userAgent = new UserAgent(versionName, versionCode, sdk, device, hardware, product, build);
 
-	    if (androidid != null && email != null && password != null && securityToken!=null) {
-		createLoginableService(androidid, email, password, localization);
-		service.login();
-		service.setSecurityToken(securityToken);
-		return service.loginAC2DM();
-	    }
-	}
+			if (androidid != null && email != null && password != null && securityToken!=null) {
+				createLoginableService(androidid, email, password, userAgent, localization);
+				service.login();
+				service.setSecurityToken(securityToken);
+				return service.loginAC2DM();
+			}
+		}
 
-	throw new GooglePlayException("Lack of information for login!");
+		throw new GooglePlayException("Lack of information for login!");
     }
 
-    private void createLoginableService(String androidid, String email, String password, String localization) throws Exception {
-	service = new GooglePlayAPI(email, password, androidid);
+    private void createLoginableService(String androidid, String email, String password, UserAgent userAgent, String localization) throws Exception {
+	service = new GooglePlayAPI(email, password, androidid, userAgent);
 	service.setLocalization(localization);
 	HttpClient proxiedHttpClient = getProxiedHttpClient();
 	if (proxiedHttpClient != null) {
@@ -464,8 +453,8 @@ public class googleplay {
 	}
     }
 
-    private void createCheckinableService(String email, String password, String localization) throws Exception {
-	service = new GooglePlayAPI(email, password);
+    private void createCheckinableService(String email, String password, String androidId, UserAgent userAgent, String localization) throws Exception {
+	service = new GooglePlayAPI(email, password, androidId, userAgent);
 	service.setLocalization(localization);
 	HttpClient proxiedHttpClient = getProxiedHttpClient();
 	if (proxiedHttpClient != null) {
@@ -511,56 +500,73 @@ public class googleplay {
     }
 
     private void checkin() throws Exception {
-	String email = namespace.getString("email");
-	String password = namespace.getString("password");
-	String localization = namespace.getString("localization");
 
-	if (email != null && password != null) {
-	    createCheckinableService(email, password, localization);
-	    service.checkin();
-	    return;
-	}
+		String androidId, email, password, localization;
+		UserAgent userAgent;
+		if (namespace.getAttrs().containsKey("conf")) {
+			Properties properties = new Properties();
+			properties.load(new FileInputStream(namespace.getString("conf")));
 
-	if (namespace.getAttrs().containsKey("conf")) {
-	    Properties properties = new Properties();
-	    properties.load(new FileInputStream(namespace.getString("conf")));
+			androidId = properties.getProperty("androidid");
+			email = properties.getProperty("email");
+			password = properties.getProperty("password");
+			localization = properties.getProperty("localization");
+			String versionName = properties.getProperty("versionName");
+			String versionCode = properties.getProperty("versionCode");
+			String sdk = properties.getProperty("sdk");
+			String device = properties.getProperty("device");
+			String hardware = properties.getProperty("hardware");
+			String product = properties.getProperty("product");
+			String build = properties.getProperty("build");
+			userAgent = new UserAgent(versionName, versionCode, sdk, device, hardware, product, build);
 
-	    email = properties.getProperty("email");
-	    password = properties.getProperty("password");
-	    localization = properties.getProperty("localization");
+			if (email != null && password != null) {
+			createCheckinableService(androidId, email, password, userAgent, localization);
+			service.checkin();
+			return;
+			}
+		} else {
+			androidId = namespace.getString("androidid");
+			email = namespace.getString("email");
+			password = namespace.getString("password");
+			localization = namespace.getString("localization");
+			userAgent = new UserAgent("4.6.17", "80260017", "19", "ghost", "qcom", "ghost", "KXA21.12-L1.29.1:user");
 
-	    if (email != null && password != null) {
-		createCheckinableService(email, password, localization);
-		service.checkin();
-		return;
-	    }
-	}
+			if (email != null && password != null) {
+				createCheckinableService(androidId, email, password, userAgent, localization);
+				service.checkin();
+				return;
+			}
+		}
 
-	throw new GooglePlayException("Lack of information for login!");
+		throw new GooglePlayException("Lack of information for login!");
     }
 
     private HttpClient getProxiedHttpClient() throws Exception {
-	String host = namespace.getString("host");
-	Integer port = namespace.getInt("port");
 
-	if (host != null && port != null) {
-	    return getProxiedHttpClient(host, port);
-	}
+		String host;
+		Integer port;
+		if (namespace.getAttrs().containsKey("conf")) {
+			Properties properties = new Properties();
+			properties.load(new FileInputStream(namespace.getString("conf")));
 
-	if (namespace.getAttrs().containsKey("conf")) {
-	    Properties properties = new Properties();
-	    properties.load(new FileInputStream(namespace.getString("conf")));
+			host = properties.getProperty("host");
+			String portString = properties.getProperty("port");
 
-	    host = properties.getProperty("host");
-	    String portString = properties.getProperty("port");
+			if (host != null && portString != null) {
+			port = Integer.valueOf(portString);
+			return getProxiedHttpClient(host, port);
+			}
+		} else {
+			host = namespace.getString("host");
+			port = namespace.getInt("port");
 
-	    if (host != null && portString != null) {
-		port = Integer.valueOf(portString);
-		return getProxiedHttpClient(host, port);
-	    }
-	}
+			if (host != null && port != null) {
+				return getProxiedHttpClient(host, port);
+			}
+		}
 
-	return null;
+		return null;
     }
 
     private static HttpClient getProxiedHttpClient(String host, Integer port) throws Exception {
